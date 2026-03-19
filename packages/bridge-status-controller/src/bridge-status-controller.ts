@@ -947,6 +947,7 @@ export class BridgeStatusController extends StaticIntervalPollingController<Brid
    * @param abTests - Legacy A/B test context for `ab_tests` (backward compatibility)
    * @param activeAbTests - New A/B test context for `active_ab_tests` (migration target). Attributes events to specific experiments.
    * @returns The transaction meta
+   * @throws An error if transaction submission fails before it gets published
    */
   submitTx = async (
     accountAddress: string,
@@ -1228,6 +1229,7 @@ export class BridgeStatusController extends StaticIntervalPollingController<Brid
    * @param params.abTests - Legacy A/B test context for `ab_tests` (backward compatibility)
    * @param params.activeAbTests - New A/B test context for `active_ab_tests` (migration target). Attributes events to specific experiments.
    * @returns A lightweight TransactionMeta-like object for history linking
+   * @throws An error if intent or transaction submission fails before they get published
    */
   submitIntent = async (params: {
     quoteResponse: QuoteResponse<Trade, Trade> & QuoteMetadata;
