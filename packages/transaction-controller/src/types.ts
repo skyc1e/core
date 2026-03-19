@@ -380,6 +380,11 @@ export type TransactionMeta = {
   rawTx?: string;
 
   /**
+   * Whether essential async data has been resolved for this transaction. Set to false when added with the instant option; flips to true once gas estimation, gas fee calculation, and transaction type resolution complete. Undefined for non-instant transactions (treated as ready).
+   */
+  ready?: boolean;
+
+  /**
    * When the transaction is dropped, this is the replacement transaction hash.
    */
   replacedBy?: string;
@@ -2174,6 +2179,9 @@ export type AddTransactionOptions = {
 
   /** Whether to disable the gas estimation buffer. */
   disableGasBuffer?: boolean;
+
+  /** Whether to add the transaction to state immediately, deferring all async data loading (gas estimation, fees, type resolution) to the background. When true, the transaction is available in state instantly but `ready` will be false until essential data resolves. Only supported for internal transactions (origin undefined or ORIGIN_METAMASK). */
+  instant?: boolean;
 
   /** Address of an ERC-20 token to pay for the gas fee, if the user has insufficient native balance. */
   gasFeeToken?: Hex;
