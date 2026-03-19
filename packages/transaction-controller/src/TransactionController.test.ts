@@ -3497,6 +3497,106 @@ describe('TransactionController', () => {
           await expect(result).rejects.toThrow('Unknown problem');
         });
       });
+
+      describe('ready gate', () => {
+        it('fails the transaction when ready is false', async () => {
+          const { controller } = setupController({
+            messengerOptions: {
+              addTransactionApprovalRequest: {
+                state: 'approved',
+              },
+            },
+          });
+
+          const { result } = await controller.addTransaction(
+            {
+              from: ACCOUNT_MOCK,
+              gas: '0x0',
+              gasPrice: '0x0',
+              to: ACCOUNT_MOCK,
+              value: '0x0',
+            },
+            {
+              networkClientId: NETWORK_CLIENT_ID_MOCK,
+              instant: true,
+            },
+          );
+
+          await expect(result).rejects.toThrow(
+            'Transaction is not ready. Essential async data has not resolved yet.',
+          );
+
+          expect(controller.state.transactions[0]).toMatchObject(
+            expect.objectContaining({
+              status: TransactionStatus.failed,
+            }),
+          );
+        });
+
+        it('proceeds normally when ready is true', async () => {
+          const { controller, mockTransactionApprovalRequest } =
+            setupController();
+
+          const { result } = await controller.addTransaction(
+            {
+              from: ACCOUNT_MOCK,
+              gas: '0x0',
+              gasPrice: '0x0',
+              to: ACCOUNT_MOCK,
+              value: '0x0',
+            },
+            {
+              networkClientId: NETWORK_CLIENT_ID_MOCK,
+              instant: true,
+            },
+          );
+
+          // Let background resolution complete, setting ready to true
+          await flushPromises();
+
+          // Now approve the transaction
+          mockTransactionApprovalRequest.approve();
+
+          await result;
+
+          expect(controller.state.transactions[0]).toMatchObject(
+            expect.objectContaining({
+              status: TransactionStatus.submitted,
+            }),
+          );
+        });
+
+        it('proceeds normally when ready is undefined', async () => {
+          const { controller } = setupController({
+            messengerOptions: {
+              addTransactionApprovalRequest: {
+                state: 'approved',
+              },
+            },
+          });
+
+          const { result } = await controller.addTransaction(
+            {
+              from: ACCOUNT_MOCK,
+              gas: '0x0',
+              gasPrice: '0x0',
+              to: ACCOUNT_MOCK,
+              value: '0x0',
+            },
+            {
+              networkClientId: NETWORK_CLIENT_ID_MOCK,
+            },
+          );
+
+          await result;
+
+          expect(controller.state.transactions[0]).toMatchObject(
+            expect.objectContaining({
+              status: TransactionStatus.submitted,
+            }),
+          );
+        });
+      });
     });
 
     describe('on reject', () => {
@@ -4478,6 +4578,51 @@ describe('TransactionController', () => {
         }),
       ]);
     });
+
+    describe('when ready is false', () => {
+      it('throws when transaction has ready false', async () => {
+        const { controller } = setupController();
+
+        const { transactionMeta } = await controller.addTransaction(
+          {
+            from: ACCOUNT_MOCK,
+            to: ACCOUNT_MOCK,
+          },
+          {
+            networkClientId: NETWORK_CLIENT_ID_MOCK,
+            instant: true,
+          },
+        );
+
+        await expect(
+          controller.stopTransaction(transactionMeta.id),
+        ).rejects.toThrow(
+          'Cannot cancel transaction: essential async data has not resolved yet.',
+        );
+      });
+
+      it('does not throw ready error when ready is undefined', async () => {
+        const { controller } = setupController();
+
+        const { transactionMeta } = await controller.addTransaction(
+          {
+            from: ACCOUNT_MOCK,
+            to: ACCOUNT_MOCK,
+          },
+          {
+            networkClientId: NETWORK_CLIENT_ID_MOCK,
+          },
+        );
+
+        try {
+          await controller.stopTransaction(transactionMeta.id);
+        } catch (error: unknown) {
+          expect((error as Error).message).not.toBe(
+            'Cannot cancel transaction: essential async data has not resolved yet.',
+          );
+        }
+      });
+    });
   });
 
   describe('speedUpTransaction', () => {
@@ -4905,6 +5050,51 @@ describe('TransactionController', () => {
           origin: ORIGIN_METAMASK,
         }),
       ]);
+    });
+
+    describe('when ready is false', () => {
+      it('throws when transaction has ready false', async () => {
+        const { controller } = setupController();
+
+        const { transactionMeta } = await controller.addTransaction(
+          {
+            from: ACCOUNT_MOCK,
+            to: ACCOUNT_MOCK,
+          },
+          {
+            networkClientId: NETWORK_CLIENT_ID_MOCK,
+            instant: true,
+          },
+        );
+
+        await expect(
+          controller.speedUpTransaction(transactionMeta.id),
+        ).rejects.toThrow(
+          'Cannot speed up transaction: essential async data has not resolved yet.',
+        );
+      });
+
+      it('does not throw ready error when ready is undefined', async () => {
+        const { controller } = setupController();
+
+        const { transactionMeta } = await controller.addTransaction(
+          {
+            from: ACCOUNT_MOCK,
+            to: ACCOUNT_MOCK,
+          },
+          {
+            networkClientId: NETWORK_CLIENT_ID_MOCK,
+          },
+        );
+
+        try {
+          await controller.speedUpTransaction(transactionMeta.id);
+        } catch (error: unknown) {
+          expect((error as Error).message).not.toBe(
+            'Cannot speed up transaction: essential async data has not resolved yet.',
+          );
+        }
+      });
     });
   });
 
