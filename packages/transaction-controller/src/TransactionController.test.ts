@@ -4097,6 +4097,111 @@ describe('TransactionController', () => {
 
         expect(transactionMeta.ready).toBeUndefined();
       });
+
+      it('uses caller-provided type without waiting for background', async () => {
+        const { controller } = setupController();
+
+        const { transactionMeta } = await controller.addTransaction(
+          {
+            from: ACCOUNT_MOCK,
+            to: ACCOUNT_MOCK,
+          },
+          {
+            networkClientId: NETWORK_CLIENT_ID_MOCK,
+            instant: true,
+            type: TransactionType.simpleSend,
+          },
+        );
+
+        expect(transactionMeta.type).toBe(TransactionType.simpleSend);
+      });
+
+      it('works with requireApproval false', async () => {
+        const { controller } = setupController();
+
+        const { transactionMeta, result } = await controller.addTransaction(
+          {
+            from: ACCOUNT_MOCK,
+            to: ACCOUNT_MOCK,
+          },
+          {
+            networkClientId: NETWORK_CLIENT_ID_MOCK,
+            instant: true,
+            requireApproval: false,
+          },
+        );
+
+        result.catch(() => {
+          // Expected: ready gate rejects because ready is false
+        });
+
+        expect(transactionMeta.ready).toBe(false);
+        expect(
+          controller.state.transactions.some(
+            (tx) => tx.id === transactionMeta.id,
+          ),
+        ).toBe(true);
+      });
+
+      it('adds multiple instant transactions in quick succession', async () => {
+        uuidModuleMock.v1
+          .mockImplementationOnce(() => 'aaa-instant-1')
+          .mockImplementationOnce(() => 'bbb-instant-2')
+          .mockImplementationOnce(() => 'ccc-instant-3');
+
+        const { controller } = setupController();
+
+        const results = await Promise.all([
+          controller.addTransaction(
+            { from: ACCOUNT_MOCK, to: ACCOUNT_MOCK },
+            { networkClientId: NETWORK_CLIENT_ID_MOCK, instant: true },
+          ),
+          controller.addTransaction(
+            { from: ACCOUNT_MOCK, to: ACCOUNT_MOCK },
+            { networkClientId: NETWORK_CLIENT_ID_MOCK, instant: true },
+          ),
+          controller.addTransaction(
+            { from: ACCOUNT_MOCK, to: ACCOUNT_MOCK },
+            { networkClientId: NETWORK_CLIENT_ID_MOCK, instant: true },
+          ),
+        ]);
+
+        const ids = results.map((r) => r.transactionMeta.id);
+
+        expect(new Set(ids).size).toBe(3);
+        expect(
+          controller.state.transactions.filter((tx) => ids.includes(tx.id)),
+        ).toHaveLength(3);
+      });
+
+      it('fails the transaction if background resolution throws', async () => {
+        updateGasMock.mockImplementationOnce(() => {
+          throw new Error('gas estimation failed');
+        });
+
+        const { controller } = setupController();
+
+        const { transactionMeta, result } = await controller.addTransaction(
+          {
+            from: ACCOUNT_MOCK,
+            to: ACCOUNT_MOCK,
+          },
+          {
+            networkClientId: NETWORK_CLIENT_ID_MOCK,
+            instant: true,
+          },
+        );
+
+        result.catch(() => undefined);
+
+        await flushPromises();
+
+        const txInState = controller.state.transactions.find(
+          (tx) => tx.id === transactionMeta.id,
+        );
+
+        expect(txInState?.status).toBe(TransactionStatus.failed);
+      });
     });
   });
 
