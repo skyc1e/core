@@ -48,6 +48,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Add `instant` option to `addTransaction` that adds the transaction to state immediately with default values, deferring gas estimation, fee calculation, and type resolution to the background ([#XXXX](https://github.com/MetaMask/core/pull/XXXX))
+- Add `ready` property to `TransactionMeta` that indicates whether essential async data has been resolved for instant transactions ([#XXXX](https://github.com/MetaMask/core/pull/XXXX))
+- Add safety guards that prevent approving, speeding up, or cancelling transactions when `ready` is `false` ([#XXXX](https://github.com/MetaMask/core/pull/XXXX))
+
+## [62.22.0]
+
+### Added
+
 - Add optional `sourceHash` field to `MetamaskPayMetadata` for tracking source chain transaction hashes when no local transaction exists ([#8133](https://github.com/MetaMask/core/pull/8133))
 - Add `predictDepositAndOrder` to `TransactionType` ([#8135](https://github.com/MetaMask/core/pull/8135))
 
