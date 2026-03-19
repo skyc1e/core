@@ -1213,6 +1213,7 @@ export class TransactionController extends BaseController<
       requireApproval,
       securityAlertResponse,
       skipInitialGasEstimate,
+      instant,
       swaps = {},
       traceContext,
       type,
@@ -1223,6 +1224,68 @@ export class TransactionController extends BaseController<
 
     if (!this.#multichainTrackingHelper.has(networkClientId)) {
       throw new Error(`Network client not found - ${networkClientId}`);
+    }
+
+    if (instant && origin !== undefined && origin !== ORIGIN_METAMASK) {
+      throw new Error(
+        'The instant option is not supported for external transactions.',
+      );
+    }
+
+    if (instant) {
+      const chainId = this.#getChainId(networkClientId);
+      const dappSuggestedGasFees = this.#generateDappSuggestedGasFees(
+        txParams,
+        origin,
+      );
+
+      const instantTransactionMeta: TransactionMeta = {
+        actionId,
+        assetsFiatValues,
+        batchId,
+        chainId,
+        dappSuggestedGasFees,
+        deviceConfirmedOn,
+        disableGasBuffer,
+        id: random(),
+        isGasFeeTokenIgnoredIfBalance: Boolean(gasFeeToken),
+        isGasFeeIncluded,
+        isGasFeeSponsored,
+        isFirstTimeInteraction: undefined,
+        isStateOnly,
+        nestedTransactions,
+        networkClientId,
+        origin,
+        ready: false,
+        requestId,
+        requiredAssets,
+        securityAlertResponse,
+        selectedGasFeeToken: gasFeeToken,
+        status: TransactionStatus.unapproved as const,
+        time: Date.now(),
+        txParams,
+        type,
+        userEditedGasLimit: false,
+        verifiedOnBlockchain: false,
+      };
+
+      this.#addMetadata(instantTransactionMeta);
+
+      this.messenger.publish(
+        `${controllerName}:unapprovedTransactionAdded`,
+        instantTransactionMeta,
+      );
+
+      return {
+        result: this.#processApproval(instantTransactionMeta, {
+          actionId,
+          isExisting: false,
+          publishHook,
+          requireApproval,
+          traceContext,
+        }),
+        transactionMeta: instantTransactionMeta,
+      };
     }
 
     const chainId = this.#getChainId(networkClientId);
