@@ -3853,6 +3853,151 @@ describe('TransactionController', () => {
         });
       });
     });
+
+    describe('when instant option is true', () => {
+      it('returns immediately with ready false', async () => {
+        const { controller } = setupController();
+
+        const { transactionMeta } = await controller.addTransaction(
+          {
+            from: ACCOUNT_MOCK,
+            to: ACCOUNT_MOCK,
+          },
+          {
+            networkClientId: NETWORK_CLIENT_ID_MOCK,
+            instant: true,
+          },
+        );
+
+        expect(transactionMeta.ready).toBe(false);
+        expect(transactionMeta.status).toBe(TransactionStatus.unapproved);
+      });
+
+      it('adds transaction to state immediately', async () => {
+        const { controller } = setupController();
+
+        const { transactionMeta } = await controller.addTransaction(
+          {
+            from: ACCOUNT_MOCK,
+            to: ACCOUNT_MOCK,
+          },
+          {
+            networkClientId: NETWORK_CLIENT_ID_MOCK,
+            instant: true,
+          },
+        );
+
+        const txInState = controller.state.transactions.find(
+          (tx) => tx.id === transactionMeta.id,
+        );
+
+        expect(txInState).toBeDefined();
+        expect(txInState?.ready).toBe(false);
+      });
+
+      it('sets ready to true after background resolution', async () => {
+        const { controller } = setupController();
+
+        const { transactionMeta } = await controller.addTransaction(
+          {
+            from: ACCOUNT_MOCK,
+            to: ACCOUNT_MOCK,
+          },
+          {
+            networkClientId: NETWORK_CLIENT_ID_MOCK,
+            instant: true,
+          },
+        );
+
+        await flushPromises();
+
+        const txInState = controller.state.transactions.find(
+          (tx) => tx.id === transactionMeta.id,
+        );
+
+        expect(txInState?.ready).toBe(true);
+      });
+
+      it('throws if instant is true with an external origin', async () => {
+        const { controller } = setupController();
+
+        await expect(
+          controller.addTransaction(
+            {
+              from: ACCOUNT_MOCK,
+              to: ACCOUNT_MOCK,
+            },
+            {
+              networkClientId: NETWORK_CLIENT_ID_MOCK,
+              instant: true,
+              origin: 'https://metamask.github.io/test-dapp/',
+            },
+          ),
+        ).rejects.toThrow(
+          'The instant option is not supported for external transactions.',
+        );
+      });
+
+      it('does not throw if instant is true with ORIGIN_METAMASK', async () => {
+        const { controller } = setupController();
+
+        await expect(
+          controller.addTransaction(
+            {
+              from: ACCOUNT_MOCK,
+              to: ACCOUNT_MOCK,
+            },
+            {
+              networkClientId: NETWORK_CLIENT_ID_MOCK,
+              instant: true,
+              origin: ORIGIN_METAMASK,
+            },
+          ),
+        ).resolves.toMatchObject({
+          transactionMeta: expect.objectContaining({ ready: false }),
+        });
+      });
+
+      it('publishes unapprovedTransactionAdded event immediately', async () => {
+        const { controller, messenger } = setupController();
+        const listener = jest.fn();
+
+        messenger.subscribe(
+          'TransactionController:unapprovedTransactionAdded',
+          listener,
+        );
+
+        await controller.addTransaction(
+          {
+            from: ACCOUNT_MOCK,
+            to: ACCOUNT_MOCK,
+          },
+          {
+            networkClientId: NETWORK_CLIENT_ID_MOCK,
+            instant: true,
+          },
+        );
+
+        expect(listener).toHaveBeenCalledTimes(1);
+        expect(listener.mock.calls[0][0]).toMatchObject({ ready: false });
+      });
+
+      it('does not set ready when instant is not true', async () => {
+        const { controller } = setupController();
+
+        const { transactionMeta } = await controller.addTransaction(
+          {
+            from: ACCOUNT_MOCK,
+            to: ACCOUNT_MOCK,
+          },
+          {
+            networkClientId: NETWORK_CLIENT_ID_MOCK,
+          },
+        );
+
+        expect(transactionMeta.ready).toBeUndefined();
+      });
+    });
   });
 
   describe('wipeTransactions', () => {
