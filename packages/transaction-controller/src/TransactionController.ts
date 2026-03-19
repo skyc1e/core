@@ -1270,6 +1270,10 @@ export class TransactionController extends BaseController<
       };
 
       this.#addMetadata(instantTransactionMeta);
+      this.#resolveInstantTransaction(
+        cloneDeep(instantTransactionMeta),
+        options,
+      ).catch(noop);
 
       this.messenger.publish(
         `${controllerName}:unapprovedTransactionAdded`,
@@ -3053,6 +3057,105 @@ export class TransactionController extends BaseController<
           transactionMeta,
         }),
     );
+  }
+
+  async #resolveInstantTransaction(
+    transactionMeta: TransactionMeta,
+    options: AddTransactionOptions,
+  ): Promise<void> {
+    const { isStateOnly, requireApproval, traceContext } = options;
+
+    const { id: transactionId, networkClientId } = transactionMeta;
+
+    try {
+      const isEIP1559Compatible =
+        await this.#getEIP1559Compatibility(networkClientId);
+
+      if (!transactionMeta.txParams.type) {
+        setEnvelopeType(transactionMeta.txParams, isEIP1559Compatible);
+      }
+
+      const ethQuery = this.#getEthQuery({ networkClientId });
+      const resolvedType =
+        transactionMeta.type ??
+        (await determineTransactionType(transactionMeta.txParams, ethQuery))
+          .type;
+
+      const { updateTransaction } = await this.#afterAdd({
+        transactionMeta,
+      });
+
+      if (updateTransaction) {
+        transactionMeta.txParamsOriginal = cloneDeep(transactionMeta.txParams);
+        updateTransaction(transactionMeta);
+      }
+
+      await this.#updateGasProperties(transactionMeta);
+
+      const { chainId } = transactionMeta;
+      validateTxParams(transactionMeta.txParams, isEIP1559Compatible, chainId);
+
+      this.#updateTransactionInternal(
+        {
+          transactionId,
+          skipResimulateCheck: true,
+          skipValidation: true,
+        },
+        (tx) => {
+          tx.txParams = { ...transactionMeta.txParams };
+          tx.type = resolvedType;
+          tx.ready = true;
+        },
+      );
+
+      const updatedMeta = this.#getTransaction(transactionId);
+      if (updatedMeta) {
+        getDelegationAddress(updatedMeta.txParams.from as Hex, ethQuery)
+          .then((delegationAddress) => {
+            this.#updateTransactionInternal(
+              {
+                transactionId,
+                skipResimulateCheck: true,
+                skipValidation: true,
+              },
+              (tx) => {
+                tx.delegationAddress = delegationAddress;
+              },
+            );
+            return undefined;
+          })
+          .catch(noop);
+      }
+
+      if (requireApproval !== false && !isStateOnly) {
+        this.#updateSimulationData(
+          this.#getTransaction(transactionId) ?? transactionMeta,
+          { traceContext },
+        ).catch((error) => {
+          log('Error while updating simulation data', error);
+          throw error;
+        });
+
+        updateFirstTimeInteraction({
+          existingTransactions: this.state.transactions,
+          getTransaction: (id: string) => this.#getTransaction(id),
+          isFirstTimeInteractionEnabled: this.#isFirstTimeInteractionEnabled,
+          trace: this.#trace,
+          traceContext,
+          transactionMeta:
+            this.#getTransaction(transactionId) ?? transactionMeta,
+          updateTransaction: this.#updateTransactionInternal.bind(this),
+        }).catch((error) => {
+          log('Error while updating first interaction properties', error);
+        });
+      }
+    } catch (error) {
+      log('Error resolving instant transaction', transactionId, error);
+      const latestMeta = this.#getTransaction(transactionId);
+      if (latestMeta) {
+        this.#failTransaction(latestMeta, error as Error);
+      }
+    }
   }
 
   #onBootCleanup(): void {
