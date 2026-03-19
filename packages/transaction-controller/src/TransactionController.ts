@@ -1499,6 +1499,13 @@ export class TransactionController extends BaseController<
       actionId,
     }: { estimatedBaseFee?: string; actionId?: string } = {},
   ): Promise<void> {
+    const transactionMeta = this.#getTransactionOrThrow(transactionId);
+    if (transactionMeta.ready === false) {
+      throw new Error(
+        'Cannot cancel transaction: essential async data has not resolved yet.',
+      );
+    }
+
     await this.#retryTransaction({
       actionId,
       estimatedBaseFee,
@@ -1543,6 +1550,13 @@ export class TransactionController extends BaseController<
       estimatedBaseFee,
     }: { actionId?: string; estimatedBaseFee?: string } = {},
   ): Promise<void> {
+    const transactionMeta = this.#getTransactionOrThrow(transactionId);
+    if (transactionMeta.ready === false) {
+      throw new Error(
+        'Cannot speed up transaction: essential async data has not resolved yet.',
+      );
+    }
+
     await this.#retryTransaction({
       actionId,
       estimatedBaseFee,
@@ -3193,6 +3207,16 @@ export class TransactionController extends BaseController<
     let transactionMeta = this.#getTransactionOrThrow(transactionId);
 
     log('Approving transaction', transactionMeta);
+
+    if (transactionMeta.ready === false) {
+      this.#failTransaction(
+        transactionMeta,
+        new Error(
+          'Transaction is not ready. Essential async data has not resolved yet.',
+        ),
+      );
+      return ApprovalState.NotApproved;
+    }
 
     try {
       if (!this.#sign) {
