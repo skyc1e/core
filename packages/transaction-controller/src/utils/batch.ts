@@ -73,6 +73,19 @@ type UpdateStateCallback = (
   ) => void | TransactionControllerState,
 ) => void;
 
+type StartTransactionBatchRequest = {
+  addTransactionInstant: TransactionController['startTransaction'];
+  getChainId: (networkClientId: string) => Hex;
+  getEthQuery: (networkClientId: string) => EthQuery;
+  messenger: TransactionControllerMessenger;
+  publicKeyEIP7702?: Hex;
+  request: TransactionBatchRequest;
+  updateTransaction: (
+    options: { transactionId: string },
+    callback: (transactionMeta: TransactionMeta) => void,
+  ) => void;
+};
+
 type AddTransactionBatchRequest = {
   addTransaction: TransactionController['addTransaction'];
   estimateGas: TransactionController['estimateGas'];
@@ -159,6 +172,99 @@ export async function addTransactionBatch(
   }
 
   return await addTransactionBatchWithHook(request);
+}
+
+export function startTransactionBatch(
+  request: StartTransactionBatchRequest,
+): TransactionBatchResult & { transactionMeta: TransactionMeta } {
+  const {
+    addTransactionInstant,
+    getChainId,
+    messenger,
+    publicKeyEIP7702,
+    request: userRequest,
+    updateTransaction,
+  } = request;
+
+  const {
+    batchId: batchIdOverride,
+    from,
+    gasFeeToken,
+    gasLimit7702,
+    networkClientId,
+    origin,
+    requestId,
+    requiredAssets,
+    requireApproval,
+    securityAlertId,
+    skipInitialGasEstimate,
+    transactions,
+    validateSecurity,
+  } = userRequest;
+
+  const chainId = getChainId(networkClientId);
+  const isChainSupported = doesChainSupportEIP7702(chainId, messenger);
+
+  if (!isChainSupported) {
+    throw rpcErrors.internal('Chain does not support EIP-7702');
+  }
+
+  const nestedTransactions: NestedTransactionMetadata[] = transactions.map(
+    (tx) => ({
+      ...tx.params,
+      type: tx.type,
+    }),
+  );
+
+  const batchParams = generateEIP7702BatchTransaction(from, nestedTransactions);
+
+  const txParams: TransactionParams = {
+    ...batchParams,
+    from,
+    gas: gasLimit7702,
+    maxFeePerGas: transactions[0]?.params.maxFeePerGas,
+    maxPriorityFeePerGas: transactions[0]?.params.maxPriorityFeePerGas,
+  };
+
+  const batchId = batchIdOverride ?? generateBatchId();
+
+  const securityAlertResponse = securityAlertId
+    ? ({ securityAlertId } as SecurityAlertResponse)
+    : undefined;
+
+  const { transactionMeta } = addTransactionInstant(txParams, {
+    batchId,
+    gasFeeToken,
+    instant: true,
+    isGasFeeIncluded: userRequest.isGasFeeIncluded,
+    isGasFeeSponsored: userRequest.isGasFeeSponsored,
+    nestedTransactions,
+    networkClientId,
+    origin,
+    requestId,
+    requireApproval,
+    requiredAssets,
+    securityAlertResponse,
+    skipInitialGasEstimate,
+    type: TransactionType.batch,
+  });
+
+  resolveInstantBatchData({
+    ethQuery: request.getEthQuery(networkClientId),
+    chainId,
+    from,
+    messenger,
+    nestedTransactions,
+    publicKeyEIP7702: publicKeyEIP7702 as Hex,
+    transactionId: transactionMeta.id,
+    updateTransaction,
+    userRequest,
+    validateSecurity,
+  }).catch((error) => {
+    log('Error resolving instant batch data', error);
+  });
+
+  return { batchId, transactionMeta };
 }
 
 /**
@@ -299,6 +405,7 @@ async function addTransactionBatchWith7702(
     from,
     gasFeeToken,
     gasLimit7702,
+    instant,
     networkClientId,
     origin,
     overwriteUpgrade,
@@ -322,6 +429,10 @@ async function addTransactionBatchWith7702(
 
   if (!publicKeyEIP7702) {
     throw rpcErrors.internal(ERROR_MESSGE_PUBLIC_KEY);
+  }
+
+  if (instant) {
+    return addInstantTransactionBatchWith7702(request);
   }
 
   let requiresUpgrade = false;
@@ -1036,4 +1147,205 @@ async function updateTransactionSignature({
   log('New signature', newSignature);
 
   return { newSignature, transactionMeta };
+}
+
+async function addInstantTransactionBatchWith7702(
+  request: AddTransactionBatchRequest,
+): Promise<TransactionBatchResult> {
+  const {
+    addTransaction,
+    messenger,
+    publicKeyEIP7702,
+    request: userRequest,
+    updateTransaction,
+  } = request;
+
+  const {
+    batchId: batchIdOverride,
+    from,
+    gasFeeToken,
+    gasLimit7702,
+    networkClientId,
+    origin,
+    requestId,
+    requiredAssets,
+    requireApproval,
+    securityAlertId,
+    skipInitialGasEstimate,
+    transactions,
+    validateSecurity,
+  } = userRequest;
+
+  const nestedTransactions: NestedTransactionMetadata[] = transactions.map(
+    (tx) => ({
+      ...tx.params,
+      type: tx.type,
+    }),
+  );
+
+  const batchParams = generateEIP7702BatchTransaction(from, nestedTransactions);
+
+  const txParams: TransactionParams = {
+    ...batchParams,
+    from,
+    gas: gasLimit7702,
+    maxFeePerGas: transactions[0]?.params.maxFeePerGas,
+    maxPriorityFeePerGas: transactions[0]?.params.maxPriorityFeePerGas,
+  };
+
+  const batchId = batchIdOverride ?? generateBatchId();
+
+  const securityAlertResponse = securityAlertId
+    ? ({ securityAlertId } as SecurityAlertResponse)
+    : undefined;
+
+  log('Adding instant batch transaction', txParams, networkClientId);
+
+  const { transactionMeta } = await addTransaction(txParams, {
+    batchId,
+    gasFeeToken,
+    instant: true,
+    isGasFeeIncluded: userRequest.isGasFeeIncluded,
+    isGasFeeSponsored: userRequest.isGasFeeSponsored,
+    nestedTransactions,
+    networkClientId,
+    origin,
+    requestId,
+    requireApproval,
+    requiredAssets,
+    securityAlertResponse,
+    skipInitialGasEstimate,
+    type: TransactionType.batch,
+  });
+
+  resolveInstantBatchData({
+    ethQuery: request.getEthQuery(networkClientId),
+    chainId: request.getChainId(networkClientId),
+    from,
+    messenger,
+    nestedTransactions,
+    publicKeyEIP7702: publicKeyEIP7702 as Hex,
+    transactionId: transactionMeta.id,
+    updateTransaction,
+    userRequest,
+    validateSecurity,
+  }).catch((error) => {
+    log('Error resolving instant batch data', error);
+  });
+
+  log('Instant batch transaction added', { batchId });
+
+  return { batchId };
+}
+
+async function resolveInstantBatchData({
+  ethQuery,
+  chainId,
+  from,
+  messenger,
+  nestedTransactions,
+  publicKeyEIP7702,
+  transactionId,
+  updateTransaction,
+  userRequest,
+  validateSecurity,
+}: {
+  ethQuery: EthQuery;
+  chainId: Hex;
+  from: Hex;
+  messenger: TransactionControllerMessenger;
+  nestedTransactions: NestedTransactionMetadata[];
+  publicKeyEIP7702: Hex;
+  transactionId: string;
+  updateTransaction: AddTransactionBatchRequest['updateTransaction'];
+  userRequest: TransactionBatchRequest;
+  validateSecurity?: TransactionBatchRequest['validateSecurity'];
+}): Promise<void> {
+  const { disableUpgrade, overwriteUpgrade, transactions } = userRequest;
+
+  let requiresUpgrade = false;
+
+  if (!disableUpgrade) {
+    const { delegationAddress, isSupported } = await isAccountUpgradedToEIP7702(
+      from,
+      chainId,
+      publicKeyEIP7702,
+      messenger,
+      ethQuery,
+    );
+
+    log('Instant batch - account status', { delegationAddress, isSupported });
+
+    if (!isSupported && delegationAddress && !overwriteUpgrade) {
+      log(
+        'Instant batch - account upgraded to unsupported contract',
+        from,
+        delegationAddress,
+      );
+    }
+
+    requiresUpgrade = !isSupported;
+  }
+
+  if (requiresUpgrade) {
+    const upgradeContractAddress = getEIP7702UpgradeContractAddress(
+      chainId,
+      messenger,
+      publicKeyEIP7702,
+    );
+
+    if (upgradeContractAddress) {
+      updateTransaction({ transactionId }, (tx) => {
+        tx.txParams.type = TransactionEnvelopeType.setCode;
+        tx.txParams.authorizationList = [{ address: upgradeContractAddress }];
+      });
+    }
+  }
+
+  const resolvedNestedTransactions = await Promise.all(
+    transactions.map((tx) =>
+      getNestedTransactionMeta(userRequest, tx, ethQuery),
+    ),
+  );
+
+  const hasTypeChanges = resolvedNestedTransactions.some(
+    (resolved, i) => resolved.type !== nestedTransactions[i]?.type,
+  );
+
+  if (hasTypeChanges) {
+    updateTransaction({ transactionId }, (tx) => {
+      tx.nestedTransactions = resolvedNestedTransactions;
+    });
+  }
+
+  if (validateSecurity) {
+    const batchParams = generateEIP7702BatchTransaction(
+      from,
+      resolvedNestedTransactions,
+    );
+
+    const resolvedTxParams: TransactionParams = {
+      ...batchParams,
+      from,
+    };
+
+    const securityRequest: ValidateSecurityRequest = {
+      method: 'eth_sendTransaction',
+      params: [
+        {
+          ...resolvedTxParams,
+          authorizationList: undefined,
+          type: TransactionEnvelopeType.feeMarket,
+        },
+      ],
+      delegationMock: requiresUpgrade
+        ? getEIP7702UpgradeContractAddress(chainId, messenger, publicKeyEIP7702)
+        : undefined,
+      origin: userRequest.origin,
+    };
+
+    validateSecurity(securityRequest, chainId).catch((error) => {
+      log('Instant batch - security validation failed', error);
+    });
+  }
 }

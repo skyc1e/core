@@ -3499,7 +3499,7 @@ describe('TransactionController', () => {
       });
 
       describe('ready gate', () => {
-        it('fails the transaction when ready is false', async () => {
+        it('resolves data before approval when using instant via addTransaction', async () => {
           const { controller } = setupController({
             messengerOptions: {
               addTransactionApprovalRequest: {
@@ -3522,46 +3522,12 @@ describe('TransactionController', () => {
             },
           );
 
-          await expect(result).rejects.toThrow(
-            'Transaction is not ready. Essential async data has not resolved yet.',
-          );
-
-          expect(controller.state.transactions[0]).toMatchObject(
-            expect.objectContaining({
-              status: TransactionStatus.failed,
-            }),
-          );
-        });
-
-        it('proceeds normally when ready is true', async () => {
-          const { controller, mockTransactionApprovalRequest } =
-            setupController();
-
-          const { result } = await controller.addTransaction(
-            {
-              from: ACCOUNT_MOCK,
-              gas: '0x0',
-              gasPrice: '0x0',
-              to: ACCOUNT_MOCK,
-              value: '0x0',
-            },
-            {
-              networkClientId: NETWORK_CLIENT_ID_MOCK,
-              instant: true,
-            },
-          );
-
-          // Let background resolution complete, setting ready to true
-          await flushPromises();
-
-          // Now approve the transaction
-          mockTransactionApprovalRequest.approve();
-
           await result;
 
           expect(controller.state.transactions[0]).toMatchObject(
             expect.objectContaining({
               status: TransactionStatus.submitted,
+              ready: true,
             }),
           );
         });
@@ -4041,19 +4007,19 @@ describe('TransactionController', () => {
       it('does not throw if instant is true with ORIGIN_METAMASK', async () => {
         const { controller } = setupController();
 
-        await expect(
-          controller.addTransaction(
-            {
-              from: ACCOUNT_MOCK,
-              to: ACCOUNT_MOCK,
-            },
-            {
-              networkClientId: NETWORK_CLIENT_ID_MOCK,
-              instant: true,
-              origin: ORIGIN_METAMASK,
-            },
-          ),
-        ).resolves.toMatchObject({
+        const addResult = await controller.addTransaction(
+          {
+            from: ACCOUNT_MOCK,
+            to: ACCOUNT_MOCK,
+          },
+          {
+            networkClientId: NETWORK_CLIENT_ID_MOCK,
+            instant: true,
+            origin: ORIGIN_METAMASK,
+          },
+        );
+
+        expect(addResult).toMatchObject({
           transactionMeta: expect.objectContaining({ ready: false }),
         });
       });
@@ -4166,7 +4132,7 @@ describe('TransactionController', () => {
           ),
         ]);
 
-        const ids = results.map((r) => r.transactionMeta.id);
+        const ids = results.map((res) => res.transactionMeta.id);
 
         expect(new Set(ids).size).toBe(3);
         expect(
@@ -4719,13 +4685,18 @@ describe('TransactionController', () => {
           },
         );
 
-        try {
-          await controller.stopTransaction(transactionMeta.id);
-        } catch (error: unknown) {
-          expect((error as Error).message).not.toBe(
-            'Cannot cancel transaction: essential async data has not resolved yet.',
-          );
-        }
+        const stopResult = controller
+          .stopTransaction(transactionMeta.id)
+          .then(() => ({ threw: false, message: '' }))
+          .catch((error: Error) => ({ threw: true, message: error.message }));
+
+        const outcome = await stopResult;
+
+        expect(
+          !outcome.threw ||
+            outcome.message !==
+              'Cannot cancel transaction: essential async data has not resolved yet.',
+        ).toBe(true);
       });
     });
   });
@@ -5192,13 +5163,18 @@ describe('TransactionController', () => {
           },
         );
 
-        try {
-          await controller.speedUpTransaction(transactionMeta.id);
-        } catch (error: unknown) {
-          expect((error as Error).message).not.toBe(
-            'Cannot speed up transaction: essential async data has not resolved yet.',
-          );
-        }
+        const speedUpResult = controller
+          .speedUpTransaction(transactionMeta.id)
+          .then(() => ({ threw: false, message: '' }))
+          .catch((error: Error) => ({ threw: true, message: error.message }));
+
+        const outcome = await speedUpResult;
+
+        expect(
+          !outcome.threw ||
+            outcome.message !==
+              'Cannot speed up transaction: essential async data has not resolved yet.',
+        ).toBe(true);
       });
     });
   });
