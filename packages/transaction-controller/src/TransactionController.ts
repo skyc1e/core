@@ -139,11 +139,7 @@ import {
   SimulationErrorCode,
 } from './types';
 import { getBalanceChanges } from './utils/balance-changes';
-import {
-  addTransactionBatch,
-  startTransactionBatch as startTransactionBatchUtil,
-  isAtomicBatchSupported,
-} from './utils/batch';
+import { addTransactionBatch, isAtomicBatchSupported } from './utils/batch';
 import {
   generateEIP7702BatchTransaction,
   getDelegationAddress,
@@ -1169,29 +1165,6 @@ export class TransactionController extends BaseController<
       request,
       signTransaction: this.#signTransaction.bind(this),
       update: this.update.bind(this),
-      updateTransaction: this.#updateTransactionInternal.bind(this),
-    });
-  }
-
-  /**
-   * Synchronously add a batch transaction with instant availability.
-   * The transaction is immediately added to state with `ready: false`.
-   * Async data (gas, security, upgrade checks) resolves in the background.
-   *
-   * @param request - Request object containing the transactions to add.
-   * @returns Result object containing the generated batch ID and transaction metadata.
-   */
-  startTransactionBatch(
-    request: TransactionBatchRequest,
-  ): TransactionBatchResult & { transactionMeta: TransactionMeta } {
-    return startTransactionBatchUtil({
-      addTransactionInstant: (txParams, options) =>
-        this.startTransaction(txParams, options),
-      getChainId: this.#getChainId.bind(this),
-      getEthQuery: (networkClientId) => this.#getEthQuery({ networkClientId }),
-      messenger: this.messenger,
-      publicKeyEIP7702: this.#publicKeyEIP7702,
-      request,
       updateTransaction: this.#updateTransactionInternal.bind(this),
     });
   }
