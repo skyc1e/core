@@ -4,13 +4,14 @@ import { cloneDeep } from 'lodash';
 import { v1 as random } from 'uuid';
 
 import { data } from './stages/data';
-import { projectLogger as log } from '../logger';
 import type {
-  AddTransactionOptions,
-  DappSuggestedGasFees,
   PipelineCallbacks,
   StartTransactionResult,
   TransactionContext,
+} from './types';
+import { projectLogger as log } from '../logger';
+import type {
+  AddTransactionOptions,
   TransactionMeta,
   TransactionParams,
 } from '../types';
@@ -29,35 +30,201 @@ export function startTransaction(
 ): StartTransactionResult {
   const normalizedParams = normalizeTransactionParams(txParams);
 
-  if (!context.hasNetworkClient(options.networkClientId)) {
-    throw new Error(`Network client not found - ${options.networkClientId}`);
-  }
+  validateRequest(normalizedParams, options, context);
 
   if (options.origin !== undefined && options.origin !== ORIGIN_METAMASK) {
     throw new Error(
-      'The instant option is not supported for external transactions.',
+      'startTransaction is not supported for external transactions.',
     );
   }
 
-  const dappSuggestedGasFees = context.generateDappSuggestedGasFees(
-    normalizedParams,
-    options.origin,
-  );
-
-  const transactionMeta = buildTransactionMeta(
+  const transactionMeta = createTransaction(
     normalizedParams,
     options,
     context,
-    dappSuggestedGasFees,
     { ready: false },
   );
-
-  context.addMetadata(transactionMeta);
-  context.publishEvent(transactionMeta);
 
   const result = runPipeline(transactionMeta, options, context);
 
   return { transactionMeta, result };
+}
+
+export async function addTransaction(
+  txParams: TransactionParams,
+  options: AddTransactionOptions,
+  context: TransactionContext,
+): Promise<{ transactionMeta: TransactionMeta; result: Promise<string> }> {
+  log('Adding transaction', txParams, options);
+
+  const normalizedParams = normalizeTransactionParams(txParams);
+
+  validateRequest(normalizedParams, options, context);
+  await validateOrigin(normalizedParams, options, context);
+  validateBatchId(options, context);
+
+  const existingTransactionMeta = context.getTransactionWithActionId(
+    options.actionId,
+  );
+
+  if (existingTransactionMeta) {
+    const transactionMeta = cloneDeep(existingTransactionMeta);
+
+    return {
+      transactionMeta,
+      result: context.processApproval(transactionMeta, {
+        actionId: options.actionId,
+        isExisting: true,
+        publishHook: options.publishHook,
+        requireApproval: options.requireApproval,
+        traceContext: options.traceContext,
+      }),
+    };
+  }
+
+  const transactionMeta = createTransaction(normalizedParams, options, context);
+
+  const callbacks: PipelineCallbacks = { onSuccess: [], onError: [] };
+
+  await data(cloneDeep(transactionMeta), options, callbacks, context);
+
+  const resolvedMeta =
+    context.getTransaction(transactionMeta.id) ?? transactionMeta;
+
+  return {
+    transactionMeta: resolvedMeta,
+    result: processApprovalWithCallbacks(
+      resolvedMeta,
+      options,
+      context,
+      callbacks,
+    ),
+  };
+}
+
+function validateRequest(
+  txParams: TransactionParams,
+  options: AddTransactionOptions,
+  context: TransactionContext,
+): void {
+  if (!context.hasNetworkClient(options.networkClientId)) {
+    throw new Error(`Network client not found - ${options.networkClientId}`);
+  }
+
+  validateTxParams(txParams);
+}
+
+async function validateOrigin(
+  txParams: TransactionParams,
+  options: AddTransactionOptions,
+  context: TransactionContext,
+): Promise<void> {
+  if (options.origin === undefined || options.origin === ORIGIN_METAMASK) {
+    return;
+  }
+
+  const permittedAddresses = await context.getPermittedAccounts?.(
+    options.origin,
+  );
+
+  const internalAccounts = context.getInternalAccounts();
+
+  await validateTransactionOrigin({
+    data: txParams.data,
+    from: txParams.from,
+    internalAccounts,
+    origin: options.origin,
+    permittedAddresses,
+    txParams,
+    type: options.type,
+  });
+}
+
+function validateBatchId(
+  options: AddTransactionOptions,
+  context: TransactionContext,
+): void {
+  const { batchId } = options;
+
+  if (!batchId?.length) {
+    return;
+  }
+
+  const isDuplicate = context.existingTransactions.some(
+    (tx) => tx.batchId?.toLowerCase() === batchId?.toLowerCase(),
+  );
+
+  if (isDuplicate && options.origin && options.origin !== ORIGIN_METAMASK) {
+    throw new JsonRpcError(
+      ErrorCode.DuplicateBundleId,
+      'Batch ID already exists',
+    );
+  }
+}
+
+function createTransaction(
+  txParams: TransactionParams,
+  options: AddTransactionOptions,
+  context: TransactionContext,
+  { ready }: { ready?: boolean } = {},
+): TransactionMeta {
+  const {
+    actionId,
+    assetsFiatValues,
+    batchId,
+    deviceConfirmedOn,
+    disableGasBuffer,
+    gasFeeToken,
+    isGasFeeIncluded,
+    isGasFeeSponsored,
+    isStateOnly,
+    nestedTransactions,
+    networkClientId,
+    origin,
+    requestId,
+    requiredAssets,
+    securityAlertResponse,
+    type,
+  } = options;
+
+  const dappSuggestedGasFees = context.generateDappSuggestedGasFees(
+    txParams,
+    origin,
+  );
+
+  const transactionMeta: TransactionMeta = {
+    actionId,
+    assetsFiatValues,
+    batchId,
+    chainId: context.getChainId(networkClientId),
+    dappSuggestedGasFees,
+    deviceConfirmedOn,
+    disableGasBuffer,
+    id: random(),
+    isGasFeeTokenIgnoredIfBalance: Boolean(gasFeeToken),
+    isGasFeeIncluded,
+    isGasFeeSponsored,
+    isStateOnly,
+    nestedTransactions,
+    networkClientId,
+    origin,
+    ready,
+    requestId,
+    requiredAssets,
+    securityAlertResponse,
+    selectedGasFeeToken: gasFeeToken,
+    status: TransactionStatus.unapproved as const,
+    time: Date.now(),
+    txParams,
+    type,
+    userEditedGasLimit: false,
+    verifiedOnBlockchain: false,
+  };
+
+  context.addMetadata(transactionMeta);
+  context.publishEvent(transactionMeta);
+
+  return transactionMeta;
 }
 
 async function runPipeline(
@@ -112,160 +279,4 @@ async function processApprovalWithCallbacks(
 
     throw error;
   }
-}
-
-export async function addTransaction(
-  txParams: TransactionParams,
-  options: AddTransactionOptions,
-  context: TransactionContext,
-): Promise<{ transactionMeta: TransactionMeta; result: Promise<string> }> {
-  log('Adding transaction', txParams, options);
-
-  const normalizedParams = normalizeTransactionParams(txParams);
-
-  if (!context.hasNetworkClient(options.networkClientId)) {
-    throw new Error(`Network client not found - ${options.networkClientId}`);
-  }
-
-  if (
-    options.instant &&
-    options.origin !== undefined &&
-    options.origin !== ORIGIN_METAMASK
-  ) {
-    throw new Error(
-      'The instant option is not supported for external transactions.',
-    );
-  }
-
-  if (options.origin !== undefined && options.origin !== ORIGIN_METAMASK) {
-    const permittedAddresses = await context.getPermittedAccounts?.(
-      options.origin,
-    );
-
-    const internalAccounts = context.getInternalAccounts();
-
-    await validateTransactionOrigin({
-      data: normalizedParams.data,
-      from: normalizedParams.from,
-      internalAccounts,
-      origin: options.origin,
-      permittedAddresses,
-      txParams: normalizedParams,
-      type: options.type,
-    });
-  }
-
-  const { batchId } = options;
-
-  if (
-    batchId?.length &&
-    context.existingTransactions.some(
-      (tx) => tx.batchId?.toLowerCase() === batchId?.toLowerCase(),
-    )
-  ) {
-    if (options.origin && options.origin !== ORIGIN_METAMASK) {
-      throw new JsonRpcError(
-        ErrorCode.DuplicateBundleId,
-        'Batch ID already exists',
-      );
-    }
-  }
-
-  const existingTransactionMeta = context.getTransactionWithActionId(
-    options.actionId,
-  );
-
-  if (existingTransactionMeta) {
-    const transactionMeta = cloneDeep(existingTransactionMeta);
-
-    return {
-      transactionMeta,
-      result: context.processApproval(transactionMeta, {
-        actionId: options.actionId,
-        isExisting: true,
-        publishHook: options.publishHook,
-        requireApproval: options.requireApproval,
-        traceContext: options.traceContext,
-      }),
-    };
-  }
-
-  const dappSuggestedGasFees = context.generateDappSuggestedGasFees(
-    normalizedParams,
-    options.origin,
-  );
-
-  const transactionMeta = buildTransactionMeta(
-    normalizedParams,
-    options,
-    context,
-    dappSuggestedGasFees,
-    { ready: options.instant ? false : undefined },
-  );
-
-  context.addMetadata(transactionMeta);
-  context.publishEvent(transactionMeta);
-
-  if (options.instant) {
-    return {
-      transactionMeta,
-      result: runPipeline(transactionMeta, options, context),
-    };
-  }
-
-  const callbacks: PipelineCallbacks = { onSuccess: [], onError: [] };
-
-  await data(cloneDeep(transactionMeta), options, callbacks, context);
-
-  const resolvedMeta =
-    context.getTransaction(transactionMeta.id) ?? transactionMeta;
-
-  return {
-    transactionMeta: resolvedMeta,
-    result: processApprovalWithCallbacks(
-      resolvedMeta,
-      options,
-      context,
-      callbacks,
-    ),
-  };
-}
-
-function buildTransactionMeta(
-  txParams: TransactionParams,
-  options: AddTransactionOptions,
-  context: TransactionContext,
-  dappSuggestedGasFees: DappSuggestedGasFees | undefined,
-  { ready }: { ready?: boolean } = {},
-): TransactionMeta {
-  validateTxParams(txParams);
-
-  return {
-    actionId: options.actionId,
-    assetsFiatValues: options.assetsFiatValues,
-    batchId: options.batchId,
-    chainId: context.getChainId(options.networkClientId),
-    dappSuggestedGasFees,
-    deviceConfirmedOn: options.deviceConfirmedOn,
-    disableGasBuffer: options.disableGasBuffer,
-    id: random(),
-    isGasFeeTokenIgnoredIfBalance: Boolean(options.gasFeeToken),
-    isGasFeeIncluded: options.isGasFeeIncluded,
-    isGasFeeSponsored: options.isGasFeeSponsored,
-    isStateOnly: options.isStateOnly,
-    nestedTransactions: options.nestedTransactions,
-    networkClientId: options.networkClientId,
-    origin: options.origin,
-    ready,
-    requestId: options.requestId,
-    requiredAssets: options.requiredAssets,
-    securityAlertResponse: options.securityAlertResponse,
-    selectedGasFeeToken: options.gasFeeToken,
-    status: TransactionStatus.unapproved as const,
-    time: Date.now(),
-    txParams,
-    type: options.type,
-    userEditedGasLimit: false,
-    verifiedOnBlockchain: false,
-  };
 }

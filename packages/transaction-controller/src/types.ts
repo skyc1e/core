@@ -2,7 +2,6 @@
 
 import type { AccessList } from '@ethereumjs/tx';
 import type { AccountsController } from '@metamask/accounts-controller';
-import type { TraceCallback } from '@metamask/controller-utils';
 import type EthQuery from '@metamask/eth-query';
 import type { GasFeeState } from '@metamask/gas-fee-controller';
 import type { NetworkClientId, Provider } from '@metamask/network-controller';
@@ -2188,9 +2187,6 @@ export type AddTransactionOptions = {
   /** Whether to disable the gas estimation buffer. */
   disableGasBuffer?: boolean;
 
-  /** Whether to add the transaction to state immediately, deferring all async data loading (gas estimation, fees, type resolution) to the background. When true, the transaction is available in state instantly but `ready` will be false until essential data resolves. Only supported for internal transactions (origin undefined or ORIGIN_METAMASK). */
-  instant?: boolean;
-
   /** Address of an ERC-20 token to pay for the gas fee, if the user has insufficient native balance. */
   gasFeeToken?: Hex;
 
@@ -2292,144 +2288,4 @@ export type RequiredAsset = {
 
   /** Token standard of the asset (e.g., 'erc20'). */
   standard: string;
-};
-
-/**
- * Callbacks that pipeline stages register to react to the final outcome.
- */
-export type PipelineCallbacks = {
-  onSuccess: (() => void)[];
-  onError: ((error: Error) => void)[];
-};
-
-/**
- * Shared dependency bag passed to every pipeline stage.
- */
-export type TransactionContext = {
-  /** Returns chain ID for a network client. */
-  getChainId: (networkClientId: string) => Hex;
-
-  /** Returns an EthQuery instance for a network client. */
-  getEthQuery: (opts: { networkClientId: string }) => EthQuery;
-
-  /** Checks EIP-1559 compatibility for a network client. */
-  getEIP1559Compatibility: (networkClientId: string) => Promise<boolean>;
-
-  /** Runs the afterAdd hook provided by the consumer. */
-  afterAdd: (opts: {
-    transactionMeta: TransactionMeta;
-  }) => Promise<{ updateTransaction?: (tx: TransactionMeta) => void }>;
-
-  /** Runs gas estimation, gas fee estimation, and L1 gas fee estimation. */
-  updateGasProperties: (
-    transactionMeta: TransactionMeta,
-    opts?: { traceContext?: unknown },
-  ) => Promise<void>;
-
-  /** Adds a transaction into state. */
-  addMetadata: (transactionMeta: TransactionMeta) => void;
-
-  /** Updates an existing transaction in state. */
-  updateTransactionInternal: (
-    opts: {
-      transactionId: string;
-      note?: string;
-      skipResimulateCheck?: boolean;
-      skipValidation?: boolean;
-    },
-    mutate: (tx: TransactionMeta) => void,
-  ) => void;
-
-  /** Gets a transaction by ID. */
-  getTransaction: (id: string) => TransactionMeta | undefined;
-
-  /** Gets an existing transaction by action ID. */
-  getTransactionWithActionId: (
-    actionId?: string,
-  ) => TransactionMeta | undefined;
-
-  /** Marks a transaction as failed. */
-  failTransaction: (transactionMeta: TransactionMeta, error: Error) => void;
-
-  /** Extracts dapp-suggested gas fee values from params and origin. */
-  generateDappSuggestedGasFees: (
-    txParams: TransactionParams,
-    origin?: string,
-  ) => DappSuggestedGasFees | undefined;
-
-  /** Optional security provider callback. */
-  securityProviderRequest?: SecurityProviderRequest;
-
-  /** Updates simulation data for a transaction. */
-  updateSimulationData: (
-    transactionMeta: TransactionMeta,
-    opts: { traceContext?: unknown },
-  ) => Promise<void>;
-
-  /** Checks if first-time interaction is enabled. */
-  isFirstTimeInteractionEnabled: () => boolean;
-
-  /** Existing transactions from state. */
-  existingTransactions: TransactionMeta[];
-
-  /** Publishes the unapproved-transaction-added event. */
-  publishEvent: (transactionMeta: TransactionMeta) => void;
-
-  /** Indicates if swaps are disabled. */
-  isSwapsDisabled: boolean;
-
-  /** Cancels a transaction. */
-  cancelTransaction: (id: string) => void;
-
-  /** Controller messenger. */
-  messenger: TransactionControllerMessenger;
-
-  /** Trace callback for performance tracing. */
-  trace: TraceCallback;
-
-  /** Checks whether a network client is registered. */
-  hasNetworkClient: (networkClientId: string) => boolean;
-
-  /** Returns internal account addresses. */
-  getInternalAccounts: () => Hex[];
-
-  /** Returns permitted addresses for an origin. */
-  getPermittedAccounts?: (origin?: string) => Promise<string[]>;
-
-  /** Requests approval from the user via the ApprovalController. */
-  requestApproval: (
-    transactionMeta: TransactionMeta,
-    opts: { shouldShowRequest: boolean; traceContext?: unknown },
-  ) => Promise<unknown>;
-
-  /** Processes the full approval → sign → publish lifecycle. */
-  processApproval: (
-    transactionMeta: TransactionMeta,
-    opts: {
-      actionId?: string;
-      isExisting?: boolean;
-      publishHook?: PublishHook;
-      requireApproval?: boolean;
-      shouldShowRequest?: boolean;
-      traceContext?: unknown;
-    },
-  ) => Promise<string>;
-};
-
-/**
- * A single stage in the transaction pipeline.
- */
-export type TransactionStage = (
-  transactionMeta: TransactionMeta,
-  options: AddTransactionOptions,
-  callbacks: PipelineCallbacks,
-  context: TransactionContext,
-) => Promise<void>;
-
-/**
- * Result returned by `startTransaction`.
- */
-export type StartTransactionResult = {
-  transactionMeta: TransactionMeta;
-  result: Promise<string>;
 };

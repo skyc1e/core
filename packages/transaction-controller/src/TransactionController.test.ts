@@ -3499,7 +3499,7 @@ describe('TransactionController', () => {
       });
 
       describe('ready gate', () => {
-        it('resolves data before approval when using instant via addTransaction', async () => {
+        it('resolves data before approval when using startTransaction', async () => {
           const { controller } = setupController({
             messengerOptions: {
               addTransactionApprovalRequest: {
@@ -3508,7 +3508,7 @@ describe('TransactionController', () => {
             },
           });
 
-          const { result } = await controller.addTransaction(
+          const { result } = controller.startTransaction(
             {
               from: ACCOUNT_MOCK,
               gas: '0x0',
@@ -3518,7 +3518,6 @@ describe('TransactionController', () => {
             },
             {
               networkClientId: NETWORK_CLIENT_ID_MOCK,
-              instant: true,
             },
           );
 
@@ -3920,18 +3919,17 @@ describe('TransactionController', () => {
       });
     });
 
-    describe('when instant option is true', () => {
-      it('returns immediately with ready false', async () => {
+    describe('startTransaction', () => {
+      it('returns immediately with ready false', () => {
         const { controller } = setupController();
 
-        const { transactionMeta } = await controller.addTransaction(
+        const { transactionMeta } = controller.startTransaction(
           {
             from: ACCOUNT_MOCK,
             to: ACCOUNT_MOCK,
           },
           {
             networkClientId: NETWORK_CLIENT_ID_MOCK,
-            instant: true,
           },
         );
 
@@ -3939,17 +3937,16 @@ describe('TransactionController', () => {
         expect(transactionMeta.status).toBe(TransactionStatus.unapproved);
       });
 
-      it('adds transaction to state immediately', async () => {
+      it('adds transaction to state immediately', () => {
         const { controller } = setupController();
 
-        const { transactionMeta } = await controller.addTransaction(
+        const { transactionMeta } = controller.startTransaction(
           {
             from: ACCOUNT_MOCK,
             to: ACCOUNT_MOCK,
           },
           {
             networkClientId: NETWORK_CLIENT_ID_MOCK,
-            instant: true,
           },
         );
 
@@ -3964,14 +3961,13 @@ describe('TransactionController', () => {
       it('sets ready to true after background resolution', async () => {
         const { controller } = setupController();
 
-        const { transactionMeta } = await controller.addTransaction(
+        const { transactionMeta } = controller.startTransaction(
           {
             from: ACCOUNT_MOCK,
             to: ACCOUNT_MOCK,
           },
           {
             networkClientId: NETWORK_CLIENT_ID_MOCK,
-            instant: true,
           },
         );
 
@@ -3984,47 +3980,45 @@ describe('TransactionController', () => {
         expect(txInState?.ready).toBe(true);
       });
 
-      it('throws if instant is true with an external origin', async () => {
+      it('throws with an external origin', () => {
         const { controller } = setupController();
 
-        await expect(
-          controller.addTransaction(
+        expect(() =>
+          controller.startTransaction(
             {
               from: ACCOUNT_MOCK,
               to: ACCOUNT_MOCK,
             },
             {
               networkClientId: NETWORK_CLIENT_ID_MOCK,
-              instant: true,
               origin: 'https://metamask.github.io/test-dapp/',
             },
           ),
-        ).rejects.toThrow(
-          'The instant option is not supported for external transactions.',
+        ).toThrow(
+          'startTransaction is not supported for external transactions.',
         );
       });
 
-      it('does not throw if instant is true with ORIGIN_METAMASK', async () => {
+      it('does not throw with ORIGIN_METAMASK', () => {
         const { controller } = setupController();
 
-        const addResult = await controller.addTransaction(
+        const startResult = controller.startTransaction(
           {
             from: ACCOUNT_MOCK,
             to: ACCOUNT_MOCK,
           },
           {
             networkClientId: NETWORK_CLIENT_ID_MOCK,
-            instant: true,
             origin: ORIGIN_METAMASK,
           },
         );
 
-        expect(addResult).toMatchObject({
+        expect(startResult).toMatchObject({
           transactionMeta: expect.objectContaining({ ready: false }),
         });
       });
 
-      it('publishes unapprovedTransactionAdded event immediately', async () => {
+      it('publishes unapprovedTransactionAdded event immediately', () => {
         const { controller, messenger } = setupController();
         const listener = jest.fn();
 
@@ -4033,14 +4027,13 @@ describe('TransactionController', () => {
           listener,
         );
 
-        await controller.addTransaction(
+        controller.startTransaction(
           {
             from: ACCOUNT_MOCK,
             to: ACCOUNT_MOCK,
           },
           {
             networkClientId: NETWORK_CLIENT_ID_MOCK,
-            instant: true,
           },
         );
 
@@ -4048,7 +4041,7 @@ describe('TransactionController', () => {
         expect(listener.mock.calls[0][0]).toMatchObject({ ready: false });
       });
 
-      it('does not set ready when instant is not true', async () => {
+      it('does not set ready when using addTransaction', async () => {
         const { controller } = setupController();
 
         const { transactionMeta } = await controller.addTransaction(
@@ -4064,17 +4057,16 @@ describe('TransactionController', () => {
         expect(transactionMeta.ready).toBeUndefined();
       });
 
-      it('uses caller-provided type without waiting for background', async () => {
+      it('uses caller-provided type without waiting for background', () => {
         const { controller } = setupController();
 
-        const { transactionMeta } = await controller.addTransaction(
+        const { transactionMeta } = controller.startTransaction(
           {
             from: ACCOUNT_MOCK,
             to: ACCOUNT_MOCK,
           },
           {
             networkClientId: NETWORK_CLIENT_ID_MOCK,
-            instant: true,
             type: TransactionType.simpleSend,
           },
         );
@@ -4082,24 +4074,21 @@ describe('TransactionController', () => {
         expect(transactionMeta.type).toBe(TransactionType.simpleSend);
       });
 
-      it('works with requireApproval false', async () => {
+      it('works with requireApproval false', () => {
         const { controller } = setupController();
 
-        const { transactionMeta, result } = await controller.addTransaction(
+        const { transactionMeta, result } = controller.startTransaction(
           {
             from: ACCOUNT_MOCK,
             to: ACCOUNT_MOCK,
           },
           {
             networkClientId: NETWORK_CLIENT_ID_MOCK,
-            instant: true,
             requireApproval: false,
           },
         );
 
-        result.catch(() => {
-          // Expected: ready gate rejects because ready is false
-        });
+        result.catch(() => undefined);
 
         expect(transactionMeta.ready).toBe(false);
         expect(
@@ -4109,7 +4098,7 @@ describe('TransactionController', () => {
         ).toBe(true);
       });
 
-      it('adds multiple instant transactions in quick succession', async () => {
+      it('adds multiple transactions in quick succession', () => {
         uuidModuleMock.v1
           .mockImplementationOnce(() => 'aaa-instant-1')
           .mockImplementationOnce(() => 'bbb-instant-2')
@@ -4117,20 +4106,20 @@ describe('TransactionController', () => {
 
         const { controller } = setupController();
 
-        const results = await Promise.all([
-          controller.addTransaction(
+        const results = [
+          controller.startTransaction(
             { from: ACCOUNT_MOCK, to: ACCOUNT_MOCK },
-            { networkClientId: NETWORK_CLIENT_ID_MOCK, instant: true },
+            { networkClientId: NETWORK_CLIENT_ID_MOCK },
           ),
-          controller.addTransaction(
+          controller.startTransaction(
             { from: ACCOUNT_MOCK, to: ACCOUNT_MOCK },
-            { networkClientId: NETWORK_CLIENT_ID_MOCK, instant: true },
+            { networkClientId: NETWORK_CLIENT_ID_MOCK },
           ),
-          controller.addTransaction(
+          controller.startTransaction(
             { from: ACCOUNT_MOCK, to: ACCOUNT_MOCK },
-            { networkClientId: NETWORK_CLIENT_ID_MOCK, instant: true },
+            { networkClientId: NETWORK_CLIENT_ID_MOCK },
           ),
-        ]);
+        ];
 
         const ids = results.map((res) => res.transactionMeta.id);
 
@@ -4147,14 +4136,13 @@ describe('TransactionController', () => {
 
         const { controller } = setupController();
 
-        const { transactionMeta, result } = await controller.addTransaction(
+        const { transactionMeta, result } = controller.startTransaction(
           {
             from: ACCOUNT_MOCK,
             to: ACCOUNT_MOCK,
           },
           {
             networkClientId: NETWORK_CLIENT_ID_MOCK,
-            instant: true,
           },
         );
 
@@ -4654,14 +4642,13 @@ describe('TransactionController', () => {
       it('throws when transaction has ready false', async () => {
         const { controller } = setupController();
 
-        const { transactionMeta } = await controller.addTransaction(
+        const { transactionMeta } = controller.startTransaction(
           {
             from: ACCOUNT_MOCK,
             to: ACCOUNT_MOCK,
           },
           {
             networkClientId: NETWORK_CLIENT_ID_MOCK,
-            instant: true,
           },
         );
 
@@ -5132,14 +5119,13 @@ describe('TransactionController', () => {
       it('throws when transaction has ready false', async () => {
         const { controller } = setupController();
 
-        const { transactionMeta } = await controller.addTransaction(
+        const { transactionMeta } = controller.startTransaction(
           {
             from: ACCOUNT_MOCK,
             to: ACCOUNT_MOCK,
           },
           {
             networkClientId: NETWORK_CLIENT_ID_MOCK,
-            instant: true,
           },
         );
 

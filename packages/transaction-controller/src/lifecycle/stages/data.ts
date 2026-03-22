@@ -2,12 +2,7 @@ import type { Hex } from '@metamask/utils';
 import { cloneDeep } from 'lodash';
 
 import { projectLogger as log } from '../../logger';
-import type {
-  AddTransactionOptions,
-  TransactionContext,
-  TransactionMeta,
-  TransactionStage,
-} from '../../types';
+import type { AddTransactionOptions, TransactionMeta } from '../../types';
 import { TransactionType } from '../../types';
 import { getDelegationAddress as fetchDelegationAddress } from '../../utils/eip7702';
 import { updateFirstTimeInteraction } from '../../utils/first-time-interaction';
@@ -15,6 +10,7 @@ import { updateSwapsTransaction } from '../../utils/swaps';
 import { determineTransactionType } from '../../utils/transaction-type';
 import { setEnvelopeType } from '../../utils/utils';
 import { validateTxParams } from '../../utils/validation';
+import type { TransactionContext, TransactionStage } from '../types';
 
 type Write = (mutate: (tx: TransactionMeta) => void) => void;
 

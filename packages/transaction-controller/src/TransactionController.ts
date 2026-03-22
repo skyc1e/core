@@ -89,6 +89,10 @@ import {
   startTransaction as startTransactionPipeline,
   addTransaction as addTransactionPipeline,
 } from './lifecycle/pipeline';
+import type {
+  StartTransactionResult,
+  TransactionContext,
+} from './lifecycle/types';
 import { projectLogger as log } from './logger';
 import type { TransactionControllerMethodActions } from './TransactionController-method-action-types';
 import type {
@@ -128,8 +132,6 @@ import type {
   PublishHookResult,
   GetGasFeeTokensRequest,
   InternalAccount,
-  StartTransactionResult,
-  TransactionContext,
 } from './types';
 import {
   GasFeeEstimateLevel,
@@ -2998,16 +3000,6 @@ export class TransactionController extends BaseController<
     let transactionMeta = this.#getTransactionOrThrow(transactionId);
 
     log('Approving transaction', transactionMeta);
-
-    if (transactionMeta.ready === false) {
-      this.#failTransaction(
-        transactionMeta,
-        new Error(
-          'Transaction is not ready. Essential async data has not resolved yet.',
-        ),
-      );
-      return ApprovalState.NotApproved;
-    }
 
     try {
       if (!this.#sign) {

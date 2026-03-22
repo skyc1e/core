@@ -113,10 +113,6 @@ export type {
   TransactionMeta,
   TransactionParams,
   TransactionReceipt,
-  PipelineCallbacks,
-  StartTransactionResult,
-  TransactionContext,
-  TransactionStage,
   ValidateSecurityRequest,
 } from './types';
 export {
@@ -142,3 +138,9 @@ export { SUPPORTED_CHAIN_IDS as INCOMING_TRANSACTIONS_SUPPORTED_CHAIN_IDS } from
 export { HARDFORK } from './utils/prepare';
 export { addTransaction, startTransaction } from './lifecycle/pipeline';
 export { data } from './lifecycle/stages/data';
+export type {
+  PipelineCallbacks,
+  StartTransactionResult,
+  TransactionContext,
+  TransactionStage,
+} from './lifecycle/types';

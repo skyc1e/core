@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Add `startTransaction` method for synchronous transaction creation with deferred async data resolution ([#8248](https://github.com/MetaMask/core/pull/8248))
+  - Transaction is immediately available in state with `ready: false`
+  - Gas estimation, fee calculation, and type resolution run in the background
+  - `ready` flips to `true` once essential data resolves
+
 ### Changed
 
 - Bump `@metamask/core-backend` from `^6.1.1` to `^6.2.0` ([#8232](https://github.com/MetaMask/core/pull/8232))
@@ -43,14 +50,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **BREAKING:** Standardize names of `TransactionController` messenger action types ([#8183](https://github.com/MetaMask/core/pull/8183))
   - All existing types for messenger actions have been renamed so they end in `Action` (e.g. `TransactionControllerEmulateNewTransaction` -> `TransactionControllerEmulateNewTransactionAction`). You will need to update imports appropriately.
   - This change only affects the types. The action type strings themselves have not changed, so you do not need to update the list of actions you pass when initializing `TransactionController` messenger.
-
-## [62.22.0]
-
-### Added
-
-- Add `instant` option to `addTransaction` that adds the transaction to state immediately with default values, deferring gas estimation, fee calculation, and type resolution to the background ([#XXXX](https://github.com/MetaMask/core/pull/XXXX))
-- Add `ready` property to `TransactionMeta` that indicates whether essential async data has been resolved for instant transactions ([#XXXX](https://github.com/MetaMask/core/pull/XXXX))
-- Add safety guards that prevent approving, speeding up, or cancelling transactions when `ready` is `false` ([#XXXX](https://github.com/MetaMask/core/pull/XXXX))
 
 ## [62.22.0]
 
