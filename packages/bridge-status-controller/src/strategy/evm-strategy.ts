@@ -105,10 +105,15 @@ export async function* submitEvmHandler(
       return await handleEvmApprovals(args);
     },
   );
+
   // Delay after approval
-  await handleMobileHardwareWalletDelay(requireApproval);
   if (approvalTxId) {
     await handleApprovalDelay(quoteResponse.quote.srcChainId);
+  }
+  // Hardware-wallet delay first (Ledger second-prompt spacing), then wait for
+  // on-chain approval confirmation so swap gas estimation runs after allowance is set.
+  await handleMobileHardwareWalletDelay(requireApproval);
+  if (requireApproval && approvalTxId) {
     await waitForTxConfirmation(args.messenger, approvalTxId);
   }
 

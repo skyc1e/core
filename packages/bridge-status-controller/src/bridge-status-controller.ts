@@ -844,7 +844,7 @@ export class BridgeStatusController extends StaticIntervalPollingController<Brid
    *
    * @param accountAddress - The address of the account to submit the transaction for
    * @param quoteResponse - The quote response
-   * @param isStxEnabledOnClient - Whether smart transactions are enabled on the client, for example the getSmartTransactionsEnabled selector value from the extension
+   * @param isStxEnabled - Whether smart transactions are enabled on the client, for example the getSmartTransactionsEnabled selector value from the extension
    * @param quotesReceivedContext - The context for the QuotesReceived event
    * @param location - The entry point from which the user initiated the swap or bridge (e.g. Main View, Token View, Trending Explore)
    * @param abTests - Legacy A/B test context for `ab_tests` (backward compatibility)
@@ -855,7 +855,7 @@ export class BridgeStatusController extends StaticIntervalPollingController<Brid
   submitTx = async (
     accountAddress: string,
     quoteResponse: QuoteResponse<Trade, Trade> & QuoteMetadata,
-    isStxEnabledOnClient: boolean,
+    isStxEnabled: boolean,
     quotesReceivedContext?: RequiredEventContextFromClient[UnifiedSwapBridgeEventName.QuotesReceived],
     location: MetaMetricsSwapsEventSource = MetaMetricsSwapsEventSource.MainView,
     abTests?: Record<string, string>,
@@ -889,7 +889,7 @@ export class BridgeStatusController extends StaticIntervalPollingController<Brid
 
     const preConfirmationProperties = getPreConfirmationPropertiesFromQuote(
       quoteResponse,
-      isStxEnabledOnClient,
+      isStxEnabled,
       isHardwareAccount,
       location,
       abTests,
@@ -907,7 +907,7 @@ export class BridgeStatusController extends StaticIntervalPollingController<Brid
           preConfirmationProperties,
         );
       return await this.#trace(
-        getTraceParams(quoteResponse, isStxEnabledOnClient),
+        getTraceParams(quoteResponse, isStxEnabled),
         async () => {
           /**
            * Check if the account is an EIP-7702 delegated account.
@@ -926,7 +926,7 @@ export class BridgeStatusController extends StaticIntervalPollingController<Brid
 
           const params: SubmitStrategyParams = {
             quoteResponse,
-            isStxEnabledOnClient,
+            isStxEnabledOnClient: isStxEnabled,
             isDelegatedAccount,
             messenger: this.messenger,
             selectedAccount,
@@ -956,7 +956,7 @@ export class BridgeStatusController extends StaticIntervalPollingController<Brid
                   ...payload,
                   quoteResponse,
                   accountAddress: selectedAccount.address,
-                  isStxEnabled: isStxEnabledOnClient,
+                  isStxEnabled,
                   startTime,
                   location,
                   abTests,
@@ -1009,7 +1009,7 @@ export class BridgeStatusController extends StaticIntervalPollingController<Brid
    * @param params.location - The entry point from which the user initiated the swap or bridge
    * @param params.abTests - Legacy A/B test context for `ab_tests` (backward compatibility)
    * @param params.activeAbTests - New A/B test context for `active_ab_tests` (migration target). Attributes events to specific experiments.
-   * @param params.isStxEnabledOnClient - Whether smart transactions are enabled on the client, for example the getSmartTransactionsEnabled selector value from the extension
+   * @param params.isStxEnabled - Whether smart transactions are enabled on the client, for example the getSmartTransactionsEnabled selector value from the extension
    * @param params.quotesReceivedContext - The context for the QuotesReceived event
    * @returns A lightweight TransactionMeta-like object for history linking
    * @throws An error if intent or transaction submission fails before they get published
@@ -1020,7 +1020,7 @@ export class BridgeStatusController extends StaticIntervalPollingController<Brid
     location?: MetaMetricsSwapsEventSource;
     abTests?: Record<string, string>;
     activeAbTests?: { key: string; value: string }[];
-    isStxEnabledOnClient?: boolean;
+    isStxEnabled?: boolean;
     quotesReceivedContext?: RequiredEventContextFromClient[UnifiedSwapBridgeEventName.QuotesReceived];
   }): Promise<Pick<TransactionMeta, 'id' | 'chainId' | 'type' | 'status'>> => {
     const {
@@ -1029,7 +1029,7 @@ export class BridgeStatusController extends StaticIntervalPollingController<Brid
       location,
       abTests,
       activeAbTests,
-      isStxEnabledOnClient,
+      isStxEnabled = false,
       quotesReceivedContext,
     } = params;
 
@@ -1037,7 +1037,7 @@ export class BridgeStatusController extends StaticIntervalPollingController<Brid
     return await this.submitTx(
       accountAddress,
       quoteResponse,
-      Boolean(isStxEnabledOnClient),
+      isStxEnabled,
       quotesReceivedContext,
       location,
       abTests,
@@ -1078,13 +1078,15 @@ export class BridgeStatusController extends StaticIntervalPollingController<Brid
     const resolvedActiveAbTests =
       eventProperties?.active_ab_tests ?? historyActiveAbTests;
 
+    const location =
+      (txMetaId
+        ? this.state.txHistory?.[txMetaId]?.location
+        : eventProperties?.location) ?? MetaMetricsSwapsEventSource.MainView;
+
     const baseProperties = {
       action_type: MetricsActionType.SWAPBRIDGE_V1,
-      location:
-        eventProperties?.location ??
-        (txMetaId ? this.state.txHistory?.[txMetaId]?.location : undefined) ??
-        MetaMetricsSwapsEventSource.MainView,
       ...(eventProperties ?? {}),
+      location,
       ...(resolvedAbTests &&
         Object.keys(resolvedAbTests).length > 0 && {
           ab_tests: resolvedAbTests,

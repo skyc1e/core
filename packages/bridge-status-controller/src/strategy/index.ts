@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/prefer-nullish-coalescing */
 /* eslint-disable @typescript-eslint/explicit-function-return-type */
-import { isNonEvmChainId } from '@metamask/bridge-controller';
+import { isEvmTxData, isNonEvmChainId } from '@metamask/bridge-controller';
 
 import { submitBatchHandler } from './batch-strategy';
 import { submitEvmHandler as defaultSubmitHandler } from './evm-strategy';
@@ -25,9 +25,11 @@ const SUBMIT_STRATEGY_REGISTRY: SubmitStrategy[] = [
       const { quoteResponse, isStxEnabledOnClient, isDelegatedAccount } =
         params;
       return (
-        isStxEnabledOnClient ||
-        quoteResponse.quote.gasIncluded7702 ||
-        isDelegatedAccount
+        (isStxEnabledOnClient ||
+          quoteResponse.quote.gasIncluded7702 ||
+          isDelegatedAccount) &&
+        isEvmTxData(quoteResponse.trade) &&
+        (quoteResponse.approval ? isEvmTxData(quoteResponse.approval) : true)
       );
     },
     execute: submitBatchHandler,

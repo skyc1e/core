@@ -1,4 +1,4 @@
-import { isEvmTxData } from '@metamask/bridge-controller';
+import { TxData } from '@metamask/bridge-controller';
 
 import type { SubmitStrategyParams, SubmitStepResult } from './types';
 import {
@@ -13,7 +13,7 @@ import {
  * @yields The approvalMeta and tradeMeta for the batched transaction
  */
 export async function* submitBatchHandler(
-  args: SubmitStrategyParams,
+  args: SubmitStrategyParams<TxData>,
 ): AsyncGenerator<SubmitStepResult, void, void> {
   const {
     requireApproval,
@@ -22,19 +22,11 @@ export async function* submitBatchHandler(
     isBridgeTx,
     addTransactionBatchFn,
   } = args;
-  if (!isEvmTxData(quoteResponse.trade)) {
-    throw new Error(
-      'Failed to submit cross-chain swap transaction: trade is not an EVM transaction',
-    );
-  }
   const transactionParams = await getAddTransactionBatchParams({
     messenger,
     isBridgeTx,
     resetApproval: quoteResponse.resetApproval,
-    approval:
-      quoteResponse.approval && isEvmTxData(quoteResponse.approval)
-        ? quoteResponse.approval
-        : undefined,
+    approval: quoteResponse.approval,
     trade: quoteResponse.trade,
     quoteResponse,
     requireApproval,

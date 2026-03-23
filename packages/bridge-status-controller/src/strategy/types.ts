@@ -3,6 +3,7 @@ import type {
   BridgeClientId,
   QuoteMetadata,
   QuoteResponse,
+  Trade,
 } from '@metamask/bridge-controller';
 import type { TraceCallback } from '@metamask/controller-utils';
 import type {
@@ -55,13 +56,13 @@ export type SubmitStepResult =
 /**
  * The parameters for the submission flow
  */
-export type SubmitStrategyParams = {
+export type SubmitStrategyParams<TradeType extends Trade = Trade> = {
   addTransactionBatchFn: TransactionController['addTransactionBatch'];
   isBridgeTx: boolean;
   isDelegatedAccount: boolean;
   isStxEnabledOnClient: boolean;
   messenger: BridgeStatusControllerMessenger;
-  quoteResponse: QuoteResponse & QuoteMetadata;
+  quoteResponse: QuoteResponse<TradeType, TradeType> & QuoteMetadata;
   requireApproval: boolean;
   selectedAccount: AccountsControllerState['internalAccounts']['accounts'][string];
   traceFn: TraceCallback;

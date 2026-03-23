@@ -185,7 +185,7 @@ export const getPreConfirmationPropertiesFromQuote = (
   quoteResponse: QuoteResponse & Partial<QuoteMetadata>,
   isStxEnabledOnClient: boolean,
   isHardwareAccount: boolean,
-  location: MetaMetricsSwapsEventSource = MetaMetricsSwapsEventSource.MainView,
+  location?: MetaMetricsSwapsEventSource,
   abTests?: Record<string, string>,
   activeAbTests?: { key: string; value: string }[],
 ) => {
