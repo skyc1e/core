@@ -14,6 +14,19 @@ import type { TransactionContext, TransactionStage } from '../types';
 
 type Write = (mutate: (tx: TransactionMeta) => void) => void;
 
+/**
+ * Resolves all async data for a transaction: envelope type, transaction type,
+ * gas estimation, validation, security checks, swaps enrichment, and simulation.
+ *
+ * Persists each resolved field to controller state via `write`. On failure,
+ * marks the transaction as failed. Fire-and-forget operations (delegation
+ * address, simulation) run after the critical path completes.
+ *
+ * @param transactionMeta - Snapshot of the transaction to enrich.
+ * @param options - Options from the original add/start call.
+ * @param _callbacks - Pipeline callbacks (unused by this stage).
+ * @param context - Controller context providing state access and side-effects.
+ */
 export const data: TransactionStage = async (
   transactionMeta,
   options,

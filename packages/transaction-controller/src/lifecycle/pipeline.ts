@@ -23,6 +23,18 @@ import {
   validateTxParams,
 } from '../utils/validation';
 
+/**
+ * Creates a transaction synchronously and runs the data pipeline in the background.
+ *
+ * The transaction is added to state immediately with `ready: false`. Gas estimation,
+ * type resolution, and other async enrichment resolve in the background — `ready`
+ * flips to `true` once essential data is available.
+ *
+ * @param txParams - Raw transaction parameters.
+ * @param options - Options controlling gas, approval, and enrichment behaviour.
+ * @param context - Controller context providing state access and side-effects.
+ * @returns The transaction metadata and a result promise that resolves to the hash.
+ */
 export function startTransaction(
   txParams: TransactionParams,
   options: AddTransactionOptions,
@@ -50,6 +62,18 @@ export function startTransaction(
   return { transactionMeta, result };
 }
 
+/**
+ * Creates a transaction, runs the data pipeline, and starts the approval flow.
+ *
+ * Validates the request, resolves all async data (gas, type, security, swaps),
+ * then hands off to approval processing. If a transaction with the same
+ * `actionId` already exists, returns the existing one instead.
+ *
+ * @param txParams - Raw transaction parameters.
+ * @param options - Options controlling gas, approval, and enrichment behaviour.
+ * @param context - Controller context providing state access and side-effects.
+ * @returns The transaction metadata and a result promise that resolves to the hash.
+ */
 export async function addTransaction(
   txParams: TransactionParams,
   options: AddTransactionOptions,

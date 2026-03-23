@@ -1815,13 +1815,6 @@ export type TransactionBatchRequest = {
   /** Address of an ERC-20 token to pay for the gas fee, if the user has insufficient native balance. */
   gasFeeToken?: Hex;
 
-  /**
-   * When true, the batch transaction is added to state immediately with `ready: false`.
-   * Async operations (upgrade check, nested transaction types, gas) resolve in the background.
-   * Only supported for the EIP-7702 batch flow.
-   */
-  instant?: boolean;
-
   /** Gas limit for the transaction batch if submitted via EIP-7702. */
   gasLimit7702?: Hex;
 

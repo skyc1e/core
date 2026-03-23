@@ -10,9 +10,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Add `startTransaction` method for synchronous transaction creation with deferred async data resolution ([#8248](https://github.com/MetaMask/core/pull/8248))
-  - Transaction is immediately available in state with `ready: false`
-  - Gas estimation, fee calculation, and type resolution run in the background
-  - `ready` flips to `true` once essential data resolves
 
 ### Changed
 

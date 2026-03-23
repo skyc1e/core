@@ -12,11 +12,18 @@ import type {
   TransactionParams,
 } from '../types';
 
+/** Lifecycle callbacks registered by pipeline stages, invoked after approval succeeds or fails. */
 export type PipelineCallbacks = {
   onSuccess: (() => void)[];
   onError: ((error: Error) => void)[];
 };
 
+/**
+ * Dependency injection surface for the transaction pipeline.
+ *
+ * Provides all controller methods and state accessors that pipeline stages
+ * need without coupling them to `TransactionController` directly.
+ */
 export type TransactionContext = {
   addMetadata: (transactionMeta: TransactionMeta) => void;
 
@@ -93,6 +100,7 @@ export type TransactionContext = {
   ) => void;
 };
 
+/** A single stage in the transaction pipeline (e.g. `data`). */
 export type TransactionStage = (
   transactionMeta: TransactionMeta,
   options: AddTransactionOptions,
@@ -100,6 +108,7 @@ export type TransactionStage = (
   context: TransactionContext,
 ) => Promise<void>;
 
+/** Return value of {@link startTransaction} — the metadata and a deferred hash promise. */
 export type StartTransactionResult = {
   transactionMeta: TransactionMeta;
   result: Promise<string>;
