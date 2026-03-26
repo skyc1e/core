@@ -1237,6 +1237,11 @@
       "count": 3
     }
   },
+  "packages/perps-controller/src/utils/myxAdapter.ts": {
+    "@typescript-eslint/no-base-to-string": {
+      "count": 2
+    }
+  },
   "packages/phishing-controller/src/BulkTokenScan.test.ts": {
     "@typescript-eslint/explicit-function-return-type": {
       "count": 2
@@ -1261,9 +1266,6 @@
     }
   },
   "packages/phishing-controller/src/PhishingController.test.ts": {
-    "@typescript-eslint/explicit-function-return-type": {
-      "count": 1
-    },
     "jest/unbound-method": {
       "count": 7
     }
@@ -1295,11 +1297,6 @@
   "packages/phishing-controller/src/tests/utils.ts": {
     "@typescript-eslint/explicit-function-return-type": {
       "count": 2
-    }
-  },
-  "packages/phishing-controller/src/types.ts": {
-    "@typescript-eslint/naming-convention": {
-      "count": 4
     }
   },
   "packages/phishing-controller/src/utils.test.ts": {
@@ -1727,11 +1724,6 @@
   "packages/subscription-controller/src/index.ts": {
     "no-restricted-syntax": {
       "count": 2
-    }
-  },
-  "packages/transaction-pay-controller/src/strategy/relay/relay-quotes.ts": {
-    "import-x/no-relative-packages": {
-      "count": 1
     }
   },
   "packages/transaction-pay-controller/src/utils/source-amounts.ts": {
