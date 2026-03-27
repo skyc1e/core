@@ -284,6 +284,7 @@ async function addTransactionBatchWith7702(
   } = request;
 
   const {
+    atomic,
     batchId: batchIdOverride,
     disableUpgrade,
     from,
@@ -346,7 +347,13 @@ async function addTransactionBatchWith7702(
     ),
   );
 
-  const batchParams = generateEIP7702BatchTransaction(from, nestedTransactions);
+  const batchParams = generateEIP7702BatchTransaction(
+    from,
+    nestedTransactions,
+    {
+      atomic,
+    },
+  );
 
   const txParams: TransactionParams = {
     ...batchParams,
