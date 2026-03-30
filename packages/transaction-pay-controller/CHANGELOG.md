@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Add route-based `confirmations_pay` strategy resolution ([#8282](https://github.com/MetaMask/core/pull/8282))
 
+### Fixed
+
+- Support for perps deposit for Across ([#8334](https://github.com/MetaMask/core/pull/8334))
+
 ## [19.0.0]
 
 ### Added
