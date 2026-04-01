@@ -110,6 +110,7 @@ const SUPPORTED_CHAIN_IDS_FOR_RELATIONSHIP_API = [
   1329, // Sei
   143, // Monad
   999, // HyperEVM
+  5000, // Mantle
 ];
 
 const log = createModuleLogger(projectLogger, 'accounts-api');
